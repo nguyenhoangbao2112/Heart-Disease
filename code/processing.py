@@ -66,7 +66,7 @@ class DataPipeline:
         
         # Encode temporary object categories to compute Mutual Information numerical scores safely
         X_encoded = X.copy()
-        for col in X_encoded.select_dtypes(include=['object']).columns:
+        for col in X_encoded.select_dtypes(include=['object', 'string']).columns:
             X_encoded[col] = X_encoded[col].astype('category').cat.codes
             
         scores = mutual_info_classif(X_encoded, y, random_state=1)
