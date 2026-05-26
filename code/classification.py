@@ -19,7 +19,7 @@ class ClassificationEngine:
         self.y = self.data[target_col]
         
         # Dynamically set up Preprocessing Transformer for Categories (OneHot Encoding)
-        categorical_cols = self.X.select_dtypes(include=['object', 'category']).columns.tolist()
+        categorical_cols = self.X.select_dtypes(include=['object', 'category', 'string']).columns.tolist()
         numeric_cols = self.X.select_dtypes(include=[np.number]).columns.tolist()
         
         self.preprocessor = ColumnTransformer(
