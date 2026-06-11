@@ -1,178 +1,196 @@
-# Heart Disease Prediction — Data Mining Framework
+# 🫀 Heart Disease Prediction — Data Mining Pipeline
 
-A complete, end-to-end data mining pipeline built in **Java** using the **Weka** library, developed as a university project for the Data Mining course at **Vietnam National University — International University (IU-HCM)**.
+A complete, end-to-end data mining pipeline for heart disease prediction, implemented in **Python** as a reimplementation and extension of an original **Java/Weka** university project.
 
-The framework predicts heart disease from patient records using classification models, and discovers frequent patterns through association rule mining.
+> **Course:** Data Mining  
+> **Institution:** Vietnam National University HCMC — International University (IU-HCM)  
+> **Author:** Nguyễn Hoàng Bảo (ITDSIU23004)  
+> **Instructor:** Dr. Nguyen Thi Thanh Sang
 
 ---
 
-## Project Overview
+## 📋 Project Overview
+
+This project applies a full data mining workflow — cleaning, feature selection, classification, and association rule mining — to predict heart disease from clinical patient records.
 
 | Detail | Value |
 |---|---|
-| Language | Java |
-| Library | Weka |
+| Language | Python 3 |
+| Key Libraries | scikit-learn, imbalanced-learn, mlxtend, pandas, numpy |
 | Dataset | `heart_disease.csv` — 10,000 instances, 21 attributes |
 | Target Variable | `Heart Disease Status` (Yes / No) |
-| Class Distribution | ~80% No, ~20% Yes (imbalanced) |
+| Class Distribution | 80% No Disease / 20% Disease (imbalanced) |
 
 ---
 
-## Pipeline Architecture
+## 🗂️ Project Structure
 
 ```
-CSV Input
-   │
-   ▼
-Data Preprocessing
-   ├── Missing value imputation (median/mode)
-   ├── Duplicate removal
-   └── Outlier detection (IQR method)
-   │
-   ▼
-Feature Selection
-   └── Information Gain + Ranker → top 11 attributes retained
-   │
-   ▼
-Train / Test Split (70 / 30)
-   └── Resample filter applied to training set only (bias toward minority class)
-   │
-   ▼
-Classification
-   ├── Naive Bayes
-   └── Random Forest (100 trees)
-   │
-   ▼
-Model Evaluation
-   └── 10-fold cross-validation
-       (Accuracy, F1, Precision, Recall, FP Rate, ROC)
-   │
-   ▼
-Association Rule Mining
-   └── Apriori on discretized attributes
-       (Support ≥ 0.05, Confidence ≥ 0.8, Top 10 rules)
-   │
-   ▼
-Model Persistence
-   └── SerializationHelper saves .model files for reuse
+Heart-Disease/
+├── code/
+│   ├── main.py               # Orchestrates the full pipeline
+│   ├── processing.py         # Data cleaning & feature selection (DataPipeline)
+│   ├── classification.py     # Model training & evaluation (ClassificationEngine)
+│   └── association.py        # Apriori rule mining (AssociationMiner)
+├── data/
+│   ├── heart_disease.csv     # Raw dataset (10,000 instances, 21 attributes)
+│   └── After_Cleaning.csv    # Cleaned & feature-selected output
+└── README.md
 ```
 
 ---
 
-## Methods
+## ⚙️ Pipeline Architecture
 
-### Classification
-
-**Naive Bayes**
-- Probabilistic baseline based on Bayes' Theorem
-- Assumes feature independence
-- Fast, efficient on high-dimensional data
-- Better at detecting the minority (disease-positive) class
-
-**Random Forest**
-- Ensemble of 100 decision trees
-- Combines bagging and random feature selection
-- Handles nonlinear relationships and noisy data
-- Higher overall accuracy but weaker minority-class recall
-
-### Association Rule Mining (Apriori)
-
-Numeric attributes were discretized into 5 bins before mining. Rules were filtered by confidence ≥ 0.8 and support ≥ 0.05. Key finding: healthier lifestyle indicators (low stress, non-smoking, normal cholesterol) are consistently associated with the absence of heart disease.
+```
+Raw CSV Input (10,000 × 21)
+         │
+         ▼
+  Data Preprocessing
+  ├── Missing value imputation  (median for numeric, mode for categorical)
+  ├── Duplicate removal
+  └── Outlier detection & capping  (IQR method, threshold = 1%)
+         │
+         ▼
+  Feature Selection
+  └── Mutual Information (Information Gain) + Ranker → top 11 attributes
+         │
+         ▼
+  Train / Test Split  (70% / 30%, stratified)
+  └── RandomOverSampler applied to training set only  (avoids data leakage)
+         │
+         ▼
+  Classification
+  ├── Naive Bayes  (GaussianNB)
+  └── Random Forest  (100 trees)
+         │
+         ▼
+  Model Evaluation
+  ├── Holdout test set  (30%)
+  └── 10-Fold Stratified Cross-Validation
+         │
+         ▼
+  Association Rule Mining
+  └── Apriori on discretized features
+      (support ≥ 0.05, confidence ≥ 0.80, top 10 rules by lift)
+```
 
 ---
 
-## Results
+## 🔬 Methods
 
-### Hold-out Evaluation (70/30 Split)
+### Data Preprocessing (`processing.py`)
+
+- **Missing value imputation** — numeric columns filled with the column median; categorical columns filled with the mode.
+- **Duplicate removal** — exact duplicate rows are dropped before any modeling.
+- **Outlier handling** — IQR-based detection per numeric column. Columns where outliers exceed 1% of the dataset have outlier values replaced with the column median (rather than dropped, to preserve dataset size).
+
+### Feature Selection (`processing.py`)
+
+Mutual Information scores are computed for all 21 attributes against the target label. The top **11 features** are retained:
+
+`Age`, `Gender`, `Blood Pressure`, `Cholesterol Level`, `Exercise Habits`, `Smoking`, `Family Heart Disease`, `Diabetes`, `BMI`, `High Blood Pressure`, `Stress Level`
+
+### Classification (`classification.py`)
+
+Two classifiers are trained and evaluated:
+
+**Naive Bayes (GaussianNB)**
+- Probabilistic baseline using Bayes' Theorem with feature independence assumption
+- Fast training; performs better on the minority (disease-positive) class
+- Categorical features are one-hot encoded before training
+
+**Random Forest (100 trees)**
+- Ensemble of decision trees combining bagging and random feature subsampling
+- Higher overall accuracy; handles nonlinear relationships and feature interactions
+- Weaker minority-class recall compared to Naive Bayes
+
+**Class imbalance handling** — `RandomOverSampler` from imbalanced-learn is used to balance the training set. Critically, it is applied *inside* the cross-validation loop (via `imblearn.Pipeline`) to prevent data leakage into validation folds. This replicates the behaviour of Weka's biased `Resample` filter from the original Java implementation.
+
+### Association Rule Mining (`association.py`)
+
+All numeric features are discretized into 5 ordinal bins (`Low`, `Low-Mid`, `Medium`, `Mid-High`, `High`). The encoded boolean transaction matrix is passed to `mlxtend`'s Apriori implementation. Rules are filtered by confidence ≥ 0.80 and support ≥ 0.05, then ranked by lift. Rules whose consequent references `Heart Disease Status` are surfaced as the key findings.
+
+**Key finding:** lifestyle indicators such as low stress, non-smoking, and normal cholesterol are consistently associated with the *absence* of heart disease.
+
+---
+
+## 📊 Results
+
+### Holdout Evaluation (70/30 Split)
 
 | Metric | Naive Bayes | Random Forest |
 |---|---|---|
 | Accuracy | 52.67% | **62.17%** |
-| F1-score (No) | 0.643 | **0.749** |
-| Recall (No) | 0.533 | **0.704** |
-| F1-score (Yes) | **0.298** | 0.237 |
-| Recall (Yes) | **0.502** | 0.293 |
-| Execution Time | 373 ms | 1,346 ms |
+| F1-score (No Disease) | 0.643 | **0.749** |
+| Recall (No Disease) | 0.533 | **0.704** |
+| F1-score (Heart Disease) | **0.298** | 0.237 |
+| Recall (Heart Disease) | **0.502** | 0.293 |
+| Training Time | ~373 ms | ~1,346 ms |
 
 ### 10-Fold Cross-Validation
 
 | Metric | Naive Bayes | Random Forest |
 |---|---|---|
 | Accuracy | 50.76% | **61.69%** |
-| F1-score (Yes) | **0.289** | 0.239 |
-| Recall (Yes) | **0.501** | 0.302 |
-| F1-score (No) | 0.623 | **0.744** |
-| Execution Time | 1,321 ms | 10,405 ms |
+| Macro F1-score | **0.456** | 0.492 |
+| Recall (Heart Disease) | **0.501** | 0.302 |
+| CV Time (total) | ~1.3 s | ~10.4 s |
 
-**Key takeaway:** Random Forest wins on overall accuracy; Naive Bayes is better at catching true heart disease cases (higher minority-class recall). The choice depends on whether the priority is general correctness or clinical sensitivity.
-
----
-
-## Class Imbalance Handling
-
-Initial attempts with **SMOTE** (Weka API) caused data leakage and instability with mixed attribute types. The final approach uses Weka's **Resample** filter with bias toward the minority class, applied only to the training split. This approach:
-
-- Works cleanly with mixed numeric/nominal data
-- Avoids leakage by being applied post-split
-- Allows fine-tuning of the target class distribution (50-50 or 60-40)
+**Interpretation:** Random Forest wins on overall accuracy. Naive Bayes achieves higher recall on the minority (disease-positive) class, making it preferable in a clinical sensitivity context where missing a true positive has a higher cost.
 
 ---
 
-## Feature Selection
+## 🚀 Getting Started
 
-Information Gain combined with the Ranker method was used to score all 21 attributes. The **top 11** were retained for modeling:
+### Prerequisites
 
-- Age, Gender, Blood Pressure, Cholesterol Level, Exercise Habits
-- Smoking, Family Heart Disease, Diabetes, BMI, High Blood Pressure, Stress Level
+```bash
+pip install pandas numpy scikit-learn imbalanced-learn mlxtend
+```
+
+### Run the full pipeline
+
+```bash
+# From the project root
+python code/main.py
+```
+
+This will:
+1. Load and analyse the raw dataset
+2. Run the full cleaning and feature selection pipeline
+3. Save the cleaned dataset to `data/After_Cleaning.csv`
+4. Train and evaluate both classifiers (holdout + 10-fold CV)
+5. Run Apriori association rule mining and print the top 10 rules
 
 ---
 
-## Known Limitations & Future Work
+## ⚠️ Known Limitations & Future Work
 
-- ROC values are low (~0.50), reflecting the inherent difficulty of separating classes in this dataset due to overlapping feature distributions
-- No hyperparameter tuning was performed on Random Forest (default settings only)
+- ROC values are low (~0.50), reflecting overlapping feature distributions between the two classes in this dataset
+- No hyperparameter tuning was performed (default `n_estimators=100`, no `max_depth`)
 - Potential improvements:
-  - Cost-sensitive learning
-  - Advanced ensemble methods (XGBoost, LightGBM via PMML bridge)
-  - Grid search over `numTrees`, `maxDepth`, and class weights
-  - Alternative evaluation metrics (MCC, PR-AUC) better suited for imbalanced data
+  - Cost-sensitive learning to penalise false negatives more heavily
+  - Advanced ensemble methods (XGBoost, LightGBM)
+  - Grid search over `n_estimators`, `max_depth`, and class weights
+  - Alternative metrics better suited for imbalanced data: Matthews Correlation Coefficient (MCC), PR-AUC
 
 ---
 
-## Setup & JVM Requirements
+## 🔗 Background: Java/Weka Implementation
 
-This project was developed with **Weka as an external dependency**. Due to Java 9+ module restrictions, the following JVM arguments are required at runtime:
+This Python codebase is a faithful reimplementation of an original pipeline built in Java using the Weka library. The Java version used:
 
-```
---add-opens java.base/java.lang=ALL-UNNAMED
---add-opens java.base/java.io=ALL-UNNAMED
---add-opens java.base/java.util=ALL-UNNAMED
-```
+- `ReplaceMissingValues` → replicated as pandas median/mode imputation
+- `InformationGain + Ranker` → replicated as `mutual_info_classif`
+- `Resample` (biased) → replicated as `RandomOverSampler`
+- `NaiveBayes` / `RandomForest` → replicated as `GaussianNB` / `RandomForestClassifier`
+- `Apriori` → replicated via `mlxtend.frequent_patterns`
 
----
-
-## Project Structure
-
-```
-├── src/
-│   ├── CSVtoARFF.java          # CSV → ARFF conversion
-│   ├── DataPreprocessing.java  # Cleaning, imputation, outlier detection
-│   ├── Classification.java     # Train/test split, resampling, model training
-│   ├── ModelEvaluation.java    # 10-fold cross-validation
-│   └── AprioriMining.java      # Discretization + association rules
-├── models/
-│   ├── NAIVEBAYES.model
-│   └── RANDOMFOREST.model
-├── data/
-│   ├── heart_disease.csv
-│   └── heart_disease.arff
-└── README.md
-```
+The Python implementation adds pipeline-level leakage prevention for cross-validation that was not present in the original Weka approach.
 
 ---
 
-## Author
+## 📄 License
 
-**Nguyễn Hoàng Bảo** — ITDSIU23004  
-Vietnam National University HCMC — International University  
-Course: Data Mining | Instructor: Dr. Nguyen Thi Thanh Sang
+This project was developed for academic purposes at IU-HCM. Dataset and results are for educational use only.
